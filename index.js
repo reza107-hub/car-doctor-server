@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const app = express()
 const port = process.env.PORT || 5000
+const jwt = require('jsonwebtoken')
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
@@ -14,6 +15,28 @@ app.get('/', (req, res) => {
     res.send('hello')
 })
 
+app.post('/jwt', (req, res) => {
+    const user = req.body
+    const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: '1h'
+    })
+    res.send({ token })
+})
+
+const verifyJwt = (req, res, next) => {
+    const authorization = req.headers.authorization
+    if (!authorization) {
+        return res.status(401).send({ error: true, message: 'Unauthorize access' })
+    }
+    const token = authorization.split(' ')[1]
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ error: true, message: 'unauthorized access' })
+        }
+        req.decoded = decoded
+        next()
+    })
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.tfxumrl.mongodb.net/?retryWrites=true&w=majority`;
 
@@ -44,8 +67,16 @@ async function run() {
             res.send(result)
         })
 
-        app.get('/booking', async (req, res) => {
-            const result = await bookingsCollection.find().toArray()
+        app.get('/booking', verifyJwt, async (req, res) => {
+            const decoded = req.decoded
+            if (decoded.email !== req.query.email) {
+                return res.status(401).send({ error: true, message: 'unauthorized access' })
+            }
+            let query = {};
+            if (req.query?.email) {
+                query = { email: req.query.email }
+            }
+            const result = await bookingsCollection.find(query).toArray()
             res.send(result)
         })
 
