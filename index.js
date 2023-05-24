@@ -52,13 +52,20 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
         const serviceCollection = client.db('carDoctor').collection('services')
         const bookingsCollection = client.db('carDoctor').collection('bookings')
 
         app.get('/services', async (req, res) => {
-            const result = await serviceCollection.find().toArray()
+            const search = req.query.search
+            const sort = req.query.sort
+            
+            const query = { title: { $regex: search, $options: 'i' } }
+            const options = {
+                sort: { "price": sort === 'asc' ? -1 : 1 }
+            }
+            const result = await serviceCollection.find(query, options).toArray()
             res.send(result)
         })
         app.get('/services/:id', async (req, res) => {
